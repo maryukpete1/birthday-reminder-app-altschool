@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Birthday Reminder App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        header {
+            background: #4361ee;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        h1 {
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-weight: 300;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .form-section, .list-section {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+        
+        .section-title {
+            color: #4361ee;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #495057;
+        }
+        
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #4361ee;
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+        
+        button {
+            background: #4361ee;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background 0.3s;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background: #3a56d4;
+        }
+        
+        button.get {
+            background: #38a169;
+        }
+        
+        button.get:hover {
+            background: #2f855a;
+        }
+        
+        button.cron {
+            background: #d69e2e;
+        }
+        
+        button.cron:hover {
+            background: #b7791f;
+        }
+        
+        .birthday-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .birthday-item {
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .birthday-item:hover {
+            background: white;
+        }
+        
+        .birthday-info {
+            flex: 1;
+            min-width: 0; /* Allows text truncation */
+        }
+        
+        .birthday-info h3 {
+            margin-bottom: 5px;
+            color: #2d3748;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .birthday-info p {
+            color: #718096;
+            font-size: 14px;
+            margin: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .birthday-actions {
+            flex-shrink: 0;
+        }
+        
+        .delete-btn {
+            background: #e53e3e;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 80px; /* Fixed width for all delete buttons */
+            text-align: center;
+        }
+        
+        .delete-btn:hover {
+            background: #c53030;
+        }
+        
+        .notification {
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            background: #d4edda;
+            color: #155724;
+            display: none;
+        }
+        
+        .notification.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 20px;
+            color: #a0aec0;
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .birthday-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .birthday-actions {
+                align-self: flex-end;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Birthday Reminder App</h1>
+        </header>
+        
+        <div class="content">
+            <div class="form-section">
+                <h2 class="section-title">Add New Birthday</h2>
+                
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="Enter email address" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="dob">Date of Birth</label>
+                    <input type="date" id="dob" required>
+                </div>
+                
+                <button onclick="addBirthday()">Add Birthday</button>
+                <button class="get" onclick="getBirthdays()">Load Birthdays</button>
+                <button class="cron" onclick="simulateCron()">Test Cron Job</button>
+                
+                <div id="notification" class="notification"></div>
+            </div>
+            
+            <div class="list-section">
+                <h2 class="section-title">Birthday List</h2>
+                <div class="birthday-list" id="birthdayList">
+                    <div class="empty-state">No birthdays found. Add some birthdays to get started.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/birthdays';
+        let birthdays = [];
+        
+        function showNotification(message, isError = false) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+            notification.className = isError ? 'notification error' : 'notification';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+        
+        async function addBirthday() {
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const dob = document.getElementById('dob').value;
+            
+            if (!username || !email || !dob) {
+                showNotification('Please fill all fields', true);
+                return;
+            }
+            
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, email, dob })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showNotification('Birthday added successfully!');
+                    document.getElementById('username').value = '';
+                    document.getElementById('email').value = '';
+                    document.getElementById('dob').value = '';
+                    getBirthdays(); // Refresh the list
+                } else {
+                    showNotification(data.error || 'Error adding birthday', true);
+                }
+            } catch (error) {
+                showNotification('Error connecting to server', true);
+                console.error('Error:', error);
+            }
+        }
+        
+        async function getBirthdays() {
+            try {
+                const response = await fetch(API_BASE);
+                birthdays = await response.json();
+                
+                const birthdayList = document.getElementById('birthdayList');
+                
+                if (birthdays.length === 0) {
+                    birthdayList.innerHTML = '<div class="empty-state">No birthdays found. Add some birthdays to get started.</div>';
+                    return;
+                }
+                
+                birthdayList.innerHTML = '';
+                birthdays.forEach(birthday => {
+                    const dob = new Date(birthday.dob).toLocaleDateString();
+                    const item = document.createElement('div');
+                    item.className = 'birthday-item';
+                    item.innerHTML = `
+                        <div class="birthday-info">
+                            <h3>${birthday.username}</h3>
+                            <p>${dob} • ${birthday.email}</p>
+                        </div>
+                        <div class="birthday-actions">
+                            <button class="delete-btn" onclick="deleteBirthday('${birthday._id}')">Delete</button>
+                        </div>
+                    `;
+                    birthdayList.appendChild(item);
+                });
+            } catch (error) {
+                showNotification('Error loading birthdays', true);
+                console.error('Error:', error);
+            }
+        }
+        
+        async function deleteBirthday(id) {
+            try {
+                const response = await fetch(`${API_BASE}/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    showNotification('Birthday deleted successfully');
+                    getBirthdays(); // Refresh the list
+                } else {
+                    showNotification('Error deleting birthday', true);
+                }
+            } catch (error) {
+                showNotification('Error connecting to server', true);
+                console.error('Error:', error);
+            }
+        }
+        
+        async function simulateCron() {
+            try {
+                const response = await fetch('/api/cron-test');
+                const data = await response.json();
+                showNotification(data.message);
+            } catch (error) {
+                showNotification('Error triggering cron job', true);
+                console.error('Error:', error);
+            }
+        }
+        
+        // Load birthdays when page loads
+        document.addEventListener('DOMContentLoaded', getBirthdays);
+    </script>
+</body>
+</html>
