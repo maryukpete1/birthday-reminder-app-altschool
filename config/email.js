@@ -1,8 +1,10 @@
 const nodemailer = require('nodemailer');
+let sgMail = null;
 require('dotenv').config();
 
 let sharedTransporter = null;
 let transporterVerified = false;
+const emailProvider = (process.env.EMAIL_PROVIDER || '').toLowerCase(); // 'sendgrid' | '' (smtp)
 
 const getBooleanEnv = (key, defaultValue) => {
   const raw = process.env[key];
@@ -55,8 +57,27 @@ const createOrGetTransporter = () => {
   return sharedTransporter;
 };
 
-// Verify transporter connectivity at startup (non-fatal)
+// Verify email provider connectivity at startup (non-fatal)
 const initEmail = async () => {
+  if (emailProvider === 'sendgrid') {
+    if (!process.env.SENDGRID_API_KEY) {
+      console.warn('SENDGRID_API_KEY is not set. Email functionality will be disabled.');
+      return false;
+    }
+    try {
+      if (!sgMail) {
+        sgMail = require('@sendgrid/mail');
+      }
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+      console.log('SendGrid API configured.');
+      transporterVerified = true; // No explicit verify endpoint; will surface on first send
+      return true;
+    } catch (error) {
+      transporterVerified = false;
+      console.warn('Failed to initialize SendGrid:', error?.message || error);
+      return false;
+    }
+  }
   if (!verifyEmailConfig()) return false;
   try {
     const transporter = createOrGetTransporter();
@@ -83,8 +104,8 @@ const formatSmtpError = (error) => {
   return parts.join(' | ');
 };
 
-// Send with retry/backoff for transient failures
-const sendWithRetry = async (transporter, mailOptions) => {
+// Send with retry/backoff for transient SMTP failures
+const sendSmtpWithRetry = async (transporter, mailOptions) => {
   const maxAttempts = getNumberEnv('EMAIL_RETRY_COUNT', 3);
   const baseDelay = getNumberEnv('EMAIL_RETRY_BASE_DELAY_MS', 750);
 
@@ -108,17 +129,40 @@ const sendWithRetry = async (transporter, mailOptions) => {
   }
 };
 
+// Send with retry/backoff for HTTP API (SendGrid) failures
+const sendSendGridWithRetry = async (msg) => {
+  if (!sgMail) {
+    sgMail = require('@sendgrid/mail');
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  }
+  const maxAttempts = getNumberEnv('EMAIL_RETRY_COUNT', 3);
+  const baseDelay = getNumberEnv('EMAIL_RETRY_BASE_DELAY_MS', 750);
+  let attempt = 0;
+  while (attempt < maxAttempts) {
+    try {
+      return await sgMail.send(msg);
+    } catch (error) {
+      attempt += 1;
+      const status = error?.code || error?.response?.statusCode;
+      const isRateLimited = status === 429;
+      const isServerError = status >= 500 && status < 600;
+      const isNetwork = !status; // e.g., ECONNRESET
+      console.error(`Email send attempt ${attempt} failed (SendGrid):`, status || error?.message);
+      if (!(isRateLimited || isServerError || isNetwork) || attempt >= maxAttempts) {
+        throw error;
+      }
+      const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 8000);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+};
+
 // Public: send birthday email
 const sendBirthdayEmail = async (birthday) => {
   try {
-    const transporter = createOrGetTransporter();
-    const fromAddress = process.env.EMAIL_FROM || process.env.EMAIL_USER;
-
-    const mailOptions = {
-      from: fromAddress,
-      to: birthday.email,
-      subject: 'Happy Birthday!',
-      html: `
+    const fromAddress = process.env.SENDGRID_FROM || process.env.EMAIL_USER || process.env.EMAIL_FROM;
+    const subject = 'Happy Birthday!';
+    const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #4361ee; text-align: center;">Happy Birthday ${birthday.username}!</h2>
           <p style="font-size: 16px; line-height: 1.6;">
@@ -134,20 +178,40 @@ const sendBirthdayEmail = async (birthday) => {
             This is an automated birthday greeting from our system.
           </p>
         </div>
-      `
-    };
+      `;
 
-    await sendWithRetry(transporter, mailOptions);
+    if (emailProvider === 'sendgrid') {
+      const msg = {
+        to: birthday.email,
+        from: fromAddress,
+        subject,
+        html
+      };
+      await sendSendGridWithRetry(msg);
+    } else {
+      const transporter = createOrGetTransporter();
+      const mailOptions = { from: fromAddress, to: birthday.email, subject, html };
+      await sendSmtpWithRetry(transporter, mailOptions);
+    }
     console.log(`Birthday email sent to ${birthday.email}`);
     return true;
   } catch (error) {
-    console.error('Error sending email:', formatSmtpError(error));
+    if (emailProvider === 'sendgrid') {
+      const status = error?.code || error?.response?.statusCode;
+      const body = error?.response?.body ? JSON.stringify(error.response.body).slice(0, 200) : '';
+      console.error('Error sending email (SendGrid):', status || error?.message, body);
+    } else {
+      console.error('Error sending email:', formatSmtpError(error));
+    }
     return false;
   }
 };
 
-// Verify minimal env config present
+// Verify minimal env config present for SMTP
 const verifyEmailConfig = () => {
+  if (emailProvider === 'sendgrid') {
+    return Boolean(process.env.SENDGRID_API_KEY);
+  }
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
     console.warn('Email credentials not found. Email functionality will be disabled.');
     return false;
