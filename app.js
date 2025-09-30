@@ -5,6 +5,7 @@ const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/database');
+const { initEmail } = require('./config/email');
 const birthdayRoutes = require('./routes/birthdays');
 const { checkBirthdays } = require('./utils/cronJob');
 
@@ -33,6 +34,7 @@ app.get('/api/cron-test', (req, res) => {
 const startServer = async () => {
   try {
     await connectDB();
+    await initEmail();
     
     // Cron job to run every day at 7am
     cron.schedule('0 7 * * *', () => {
